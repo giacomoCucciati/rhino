@@ -1,0 +1,18 @@
+This software was developed to offer the well known abilities of Tasso in a more "user-friendly" GUI. 
+By now only Tasso standard functionalities are implemented but soon or later also the most advanced ones will be added.
+Try it!
+
+Read MANUAL.TXT for all the instruction...
+
+Help us to impreve this software: report for bugs, suggest implementations or just ask for more information at giacomo.cucciati@gmail.com.
+Maybe I could even answer!
+
+
+Special thanks to Oliviero Cremonesi as author of Tasso.
+
+
+
+
+
+
+

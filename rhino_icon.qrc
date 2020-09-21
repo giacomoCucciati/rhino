@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/">
+        <file>Rhino.png</file>
+    </qresource>
+</RCC>
