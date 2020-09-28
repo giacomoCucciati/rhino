@@ -8,10 +8,31 @@ Per funzionare il programma ha bisogno delle seguenti librerie:
 * Root (testato con root_v6.22.02.Linux-ubuntu18-x86_64-gcc7.5.tar.gz)
 
 ## INSTALLAZIONE
+```shell
+git clone https://github.com/giacomoCucciati/rhino.git
+cd rhino
+mkdir build
+cd build
+cmake
+make
+```
+Il cmake potrebbe fallire non trovando le librerie delle qwt e root. Nel caso prima del cmake lancia
+```shell
+export ROOT_DIR=/path/to/root/cmake
+cmake -DQWT_LIBRARY_PATH=/path/to/qwt-6.1.5/lib/ -DQWT_INCLUDE_PATH=/path/to/qwt-6.1.5/include/ ..
+```
+Attenzione alla versione delle qwt nel path riportato qui sopra.
 
-1. Clonati il progetto in locale 
-2. Crea una cartella 'build' nella cartella principale del progetto ed entra
-3. cmake
+Al termine del make il file eseguibile 'Rhino' verra' creato nella cartella rhino/bin. Per lanciare il programma:
+```shell
+cd bin
+./Rhino
+```
+Ancora, il programma potrebbe fallire non trovando le librerie di root se non hai aggiunto root nel bashrc. Nel caso lancia 
+```shell
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path/to/root/lib/
+```
+prima di ./Rhino
 
 ## ELEMENTI DELLLA GUI
 ### BARRA IN ALTO
