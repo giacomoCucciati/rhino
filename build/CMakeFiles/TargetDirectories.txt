@@ -1,4 +1,0 @@
-/home/gcucciat/Documents/rhino/build/CMakeFiles/rebuild_cache.dir
-/home/gcucciat/Documents/rhino/build/CMakeFiles/Rhino.dir
-/home/gcucciat/Documents/rhino/build/CMakeFiles/edit_cache.dir
-/home/gcucciat/Documents/rhino/build/CMakeFiles/Rhino_autogen.dir
