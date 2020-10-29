@@ -21,7 +21,7 @@
 #include <qprinter.h>
 #include <qprintdialog.h>
 #include <qwt_plot_renderer.h>
-#include <spectrum.h>
+// #include <spectrum.h>
 #include <mylabel.h>
 #include <QTextEdit>
 
@@ -60,7 +60,7 @@ void MainWindow::initializeAll(){
     m_picker = new QwtPickerClickPointMachine();
     m_picker->setState(QwtPickerMachine::PointSelection);
 
-    d_picker = new QwtPlotPicker(QwtPlot::xBottom, QwtPlot::yLeft, QwtPlotPicker::VLineRubberBand, QwtPicker::AlwaysOn, ui->histoPlot->canvas());
+    d_picker = new MyPicker(QwtPlot::xBottom, QwtPlot::yLeft, QwtPlotPicker::VLineRubberBand, QwtPicker::AlwaysOn, ui->histoPlot->canvas());
     d_picker->setTrackerMode(QwtPicker::AlwaysOn);
     d_picker->setStateMachine(m_picker);
 
@@ -111,7 +111,8 @@ void MainWindow::initializeAll(){
     ui->menuFile->actions().at(1)->setDisabled(true);
     pathName="~/";
     showMaximized();
-    
+    isLogScaleActive = false;
+    baseValueLinLogScale = 0.0;
 
 }
 
@@ -158,7 +159,7 @@ void MainWindow::on_actionLoad_File_triggered()
             cout<<firstSpectrum->histoFileName.toStdString()<<endl;
             t=histoFileName.lastIndexOf("/");
             firstSpectrum->fileName=histoFileName.right(histoFileName.size()-t-1);
-            firstSpectrum-> fileName.chop(4);
+            firstSpectrum->fileName.chop(4);
 
 
 
@@ -184,7 +185,13 @@ void MainWindow::on_actionLoad_File_triggered()
         QwtText title(firstSpectrum->histoFileName);
         title.setFont(QFont("Times",12,QFont::Bold));
         ui->histoPlot->setTitle(title);
-        histogramFirst->setSamples(selectedSpectrum->histoVector);
+        if (isLogScaleActive) {
+            histogramFirst->setSamples(selectedSpectrum->logHistoVector);
+        } else {
+            histogramFirst->setSamples(selectedSpectrum->histoVector);
+        }
+        histogramFirst->setBaseline(baseValueLinLogScale);
+
         showSpectrumInHistoPlot();
         zoomer->setZoomBase();
         setEnabledConsole(true);
@@ -219,8 +226,13 @@ void MainWindow::on_actionSup_Spectrum_triggered()
         QwtText title(selectedSpectrum->histoFileName+"\n"+secondSpectrum->histoFileName);
         title.setFont(QFont("Times",12,QFont::Bold));
         ui->histoPlot->setTitle(title);
-
-        histogramSecond->setSamples(secondSpectrum->histoVector);
+        
+        if (isLogScaleActive) {
+            histogramSecond->setSamples(secondSpectrum->logHistoVector);
+        } else {
+            histogramSecond->setSamples(secondSpectrum->histoVector);
+        }
+        histogramSecond->setBaseline(baseValueLinLogScale);
         showSpectrumInHistoPlot();
         ui->secondSpecButton->setEnabled(true);
 
@@ -368,17 +380,14 @@ void MainWindow::modifyScrollOnZoom(QRectF rectangle){
     ui->histoScrollBar->setPageStep(rectangle.width()/zoomer->zoomBase().width()*histoScrollBarMaxLength);
     ui->histoScrollBar->setMaximum(histoScrollBarMaxLength-ui->histoScrollBar->pageStep());
     ui->histoScrollBar->setValue(rectangle.left()*histoScrollBarMaxLength/zoomer->zoomBase().width());
-
 }
 
 void MainWindow::modifyHistoOnScroll(int value){
 
         qreal leftNew = zoomer->zoomBase().width()*value/histoScrollBarMaxLength;
-        qreal topNew = 0;
         qreal widthNew = zoomer->zoomRect().width();
         qreal heightNew = selectedSpectrum->histoVector.at(findMaxInWindow()).value*1.1;
-        zoomer->zoom(leftNew,topNew,widthNew,heightNew);
-
+        zoomer->zoom(leftNew, baseValueLinLogScale, widthNew, heightNew);
 }
 
 int MainWindow::findMaxInWindow(){
@@ -464,8 +473,8 @@ void MainWindow::on_fitButton_clicked()
         ui->histoPlot->replot();
 
 
-    } else if(myMarkersAndFits->tempMarkersVector.size()==2){
-        //tolgo tutto quello che non devo più disegnare
+    } else if(myMarkersAndFits->tempMarkersVector.size()==2){ // Integral
+        // Removing lines we don't need
         myMarkersAndFits->clearVectors();
         gaussianFit->detach();
         backgroundFit->detach();
@@ -474,11 +483,17 @@ void MainWindow::on_fitButton_clicked()
         for(int g=0; g<(int)singleGaussCurveVector.size(); g++){
             singleGaussCurveVector.at(g)->detach();
         }
-        //aggiungo le curve da disegnare
+        // Adding Integral Area
         integralFit->attach(ui->histoPlot);
         myMarkersAndFits->setFitInterval(selectedSpectrum->histoVector);
         myMarkersAndFits->calculateIntegral();
-        integralFit->setSamples(myMarkersAndFits->integralHisto);
+        if (isLogScaleActive) {
+            integralFit->setSamples(myMarkersAndFits->logIntegralHisto);
+        } else {
+            integralFit->setSamples(myMarkersAndFits->integralHisto);
+        }
+        integralFit->setBaseline( baseValueLinLogScale );
+
 
         fillTable("integral");
         //delete markers when the fit is finished;
@@ -529,16 +544,25 @@ void MainWindow::catchPointSelected(const QPointF &pos ){
 void MainWindow::wheelEvent(QWheelEvent *event){
     if(d_picker->trackerPosition().x()!=-1){
         if(zoomer->isEnabled()){
+            QPointF coordinates = d_picker->getCoordinatesFromPixels(d_picker->trackerPosition());
+            cout << d_picker->trackerPosition().x() << " " << coordinates.x() << " " <<zoomer->zoomRect().left()<<endl;
             qreal widthNew = 0;
             if(event->delta()>0) widthNew = zoomer->zoomRect().width()*0.9;
             else if(event->delta()<0) widthNew = zoomer->zoomRect().width()*1.1;
             if (widthNew>zoomer->zoomBase().width()) widthNew = zoomer->zoomBase().width();
             qreal leftNew = zoomer->zoomRect().left()+(zoomer->zoomRect().width()-widthNew)/2;
+            //qreal relVal = coordinates.x() - (zoomer->zoomRect().left() + zoomer->zoomRect().width()/2);
+            //relVal = relVal / (zoomer->zoomRect().width()/2) / 5;
+            //leftNew = leftNew + relVal * leftNew;
+            
+            // Correction to the left side position of the window to have a gmap-like zoom:
+            // the bin pointed by the cursor stays in the same relative position in the windows,
+            // i.e. stays under the cursor while the rest zooms in or out
+            qreal relVal = (coordinates.x() - zoomer->zoomRect().left()) / zoomer->zoomRect().width();
+            leftNew = -(relVal * widthNew - coordinates.x());
             if (leftNew<zoomer->zoomBase().left()) leftNew =zoomer->zoomBase().left();
-            qreal topNew = 0;
             qreal heightNew = zoomer->zoomRect().height();
-            zoomer->zoom(leftNew,topNew,widthNew,heightNew);
-
+            zoomer->zoom(leftNew, baseValueLinLogScale, widthNew, heightNew);
         }
     }
 }
@@ -777,7 +801,6 @@ void MainWindow::fillTable(string entryType){
         int spectrumNumber;
         if (selectedSpectrum==firstSpectrum) spectrumNumber=1;
         else if (selectedSpectrum==secondSpectrum)   spectrumNumber=2;
-        cout<<"1 o 2?? "<<spectrumNumber<<endl;
         whichSpectrum->setBackgroundColor(bgcolor);
         whichSpectrum->setText(QString::number ( spectrumNumber,'g',6 ));
         whichSpectrum->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
@@ -866,6 +889,41 @@ void MainWindow::on_printHistoButton_clicked()
         renderer.renderTo( ui->histoPlot, printer );
     }
 
+}
+
+void MainWindow::on_logScaleButton_clicked()
+{
+    // We do something only if there is at least a spectrum in the plot
+    if (firstSpectrum == NULL) {
+        return;
+    }
+
+    isLogScaleActive = !isLogScaleActive;
+    if(isLogScaleActive) {
+        baseValueLinLogScale = 0.1;
+        histogramFirst->setSamples(firstSpectrum->logHistoVector);
+        ui->histoPlot->setAxisScaleEngine(QwtPlot::yLeft, new QwtLogScaleEngine(10));
+    } else {
+        baseValueLinLogScale = 0.0;
+        histogramFirst->setSamples(firstSpectrum->histoVector);
+        ui->histoPlot->setAxisScaleEngine(QwtPlot::yLeft, new QwtLinearScaleEngine);
+    }
+    histogramFirst->setBaseline(baseValueLinLogScale);
+    
+    // Same for second spectrum if present
+    if (secondSpectrum != NULL) {
+        if(isLogScaleActive) {
+            histogramSecond->setSamples(secondSpectrum->logHistoVector);
+        } else {
+            histogramSecond->setSamples(secondSpectrum->histoVector);
+        }
+        histogramSecond->setBaseline(baseValueLinLogScale);   
+    }
+
+    QRectF oldRect = zoomer->zoomRect();
+    zoomer->zoom(oldRect.left(), baseValueLinLogScale, oldRect.width(), oldRect.height());
+    myMarkersAndFits->clearVectors();
+    ui->histoPlot->replot();
 }
 
 void MainWindow::on_toolButton_clicked()
@@ -1038,7 +1096,7 @@ void MainWindow::on_firstSpecButton_clicked(bool checked)
         ui->secondSpecButton->setChecked(false);
         QRectF oldRect = zoomer->zoomRect();
         qreal heightNew = selectedSpectrum->histoVector.at(findMaxInWindow()).value*1.1;
-        zoomer->zoom(oldRect.left(),0,oldRect.width(),heightNew);
+        zoomer->zoom(oldRect.left(),baseValueLinLogScale,oldRect.width(),heightNew);
         printSpectrumData();
 
 
@@ -1057,7 +1115,7 @@ void MainWindow::on_secondSpecButton_clicked(bool checked)
         ui->firstSpecButton->setChecked(false);
         QRectF oldRect = zoomer->zoomRect();
         qreal heightNew = selectedSpectrum->histoVector.at(findMaxInWindow()).value*1.1;
-        zoomer->zoom(oldRect.left(),0,oldRect.width(),heightNew);
+        zoomer->zoom(oldRect.left(),baseValueLinLogScale,oldRect.width(),heightNew);
         printSpectrumData();
 
 
@@ -1075,16 +1133,16 @@ void MainWindow::printSpectrumData()    {
 
 }
 
-void MainWindow::on_autofitButton_clicked()
-{
+// void MainWindow::on_autofitButton_clicked()
+// {
 
-    QString filename = QFileDialog::getSaveFileName(this,tr("Save Autofit File"), selectedSpectrum->fileName + "_AUTOFIT.txt");
-    selectedSpectrum->peakId(filename);
+//     QString filename = QFileDialog::getSaveFileName(this,tr("Save Autofit File"), selectedSpectrum->fileName + "_AUTOFIT.txt");
+//     selectedSpectrum->peakId(filename);
 
-}
+// }
 
-void MainWindow::on_pushButton_clicked()
-{
-    QString link = "http://nucleardata.nuclear.lu.se/toi/";
-    QDesktopServices::openUrl(QUrl(link));
-}
+// void MainWindow::on_pushButton_clicked()
+// {
+//     QString link = "http://nucleardata.nuclear.lu.se/toi/";
+//     QDesktopServices::openUrl(QUrl(link));
+// }

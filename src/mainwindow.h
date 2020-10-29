@@ -37,13 +37,13 @@ public:
     vector<QwtPlotCurve*> singleGaussCurveVector;
     MyZoomer *zoomer;
     QwtPickerClickPointMachine *m_picker;
-    QwtPlotPicker *d_picker;
+    MyPicker *d_picker;
 
     MarkersAndFits* myMarkersAndFits;
     int histoScrollBarMaxLength;
     QString pathName;
-
-
+    bool isLogScaleActive;
+    float baseValueLinLogScale;
     //MY METHODS
     void showSpectrumInHistoPlot();
     void initializeAll();
@@ -80,6 +80,8 @@ private slots:
 
     void on_clearTableButton_clicked();
 
+    void on_logScaleButton_clicked();
+
     void on_saveImageButton_clicked();
 
     void on_addCalButton_clicked();
@@ -110,9 +112,9 @@ private slots:
 
     void printSpectrumData();
 
-    void on_autofitButton_clicked();
+    //void on_autofitButton_clicked();
 
-    void on_pushButton_clicked();
+    // void on_pushButton_clicked();
 
 private:
     Ui::MainWindow *ui;

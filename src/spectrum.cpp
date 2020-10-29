@@ -90,12 +90,18 @@ void Spectrum::loadHistoVector(string type, int spectrumNumber){
             fileAgain.read (stuff, sizeof(stuff));
             for(int i = 0; i <chNum; i++){
                 int temp;
+                float floatTemp; 
                 fileAgain.read(reinterpret_cast<char*>(&temp), sizeof(int));
 
                 vettoreValori.push_back(temp);          //AGGIUNTA MAFFE
                 origHistoVector.append(QwtIntervalSample( temp, calibrateBin(i), calibrateBin(i+1)));
                 histoVector.append(QwtIntervalSample( temp, calibrateBin(i), calibrateBin(i+1)));
-
+                if (temp == 0) {
+                    floatTemp = 0.1;
+                } else {
+                    floatTemp = (float)temp;
+                }
+                logHistoVector.append(QwtIntervalSample( floatTemp, calibrateBin(i), calibrateBin(i+1)));
             }
             fileAgain.close();
 
@@ -127,11 +133,16 @@ void Spectrum::loadHistoVector(string type, int spectrumNumber){
                 file.read(otherStuff_2, sizeof(otherStuff_2));
                 for(int i = 0; i <chNum; i++){
                     float temp;
+                    float floatTemp; 
                     file.read(reinterpret_cast<char*>(&temp), sizeof(temp));
                     origHistoVector.append(QwtIntervalSample( temp, calibrateBin(i), calibrateBin(i+1)));
                     histoVector.append(QwtIntervalSample( temp, calibrateBin(i), calibrateBin(i+1)));
-                    if(i == 247) cout<<histoVector.at(i).interval.minValue()<<" "<<histoVector.at(i).interval.maxValue()<<endl;
-
+                    if (temp == 0) {
+                        floatTemp = 0.1;
+                    } else {
+                        floatTemp = (float)temp;
+                    }
+                    logHistoVector.append(QwtIntervalSample( floatTemp, calibrateBin(i), calibrateBin(i+1)));
                 }
                 file.close();
                 if(counter==spectrumNumber) break;
@@ -187,293 +198,293 @@ void Spectrum::recalibrate(){
     minValue = histoVector.at(0).interval.minValue();
 }
 
-void Spectrum::peakId(QString destinazione) {
-    cout<<"INIZIO peakID() !!!"<<endl;
-    cout<<vettoreValori.size()<<" lunghezza del vettore che contiene l'istogramma"<<endl;
+// void Spectrum::peakId(QString destinazione) {
+//     cout<<"INIZIO peakID() !!!"<<endl;
+//     cout<<vettoreValori.size()<<" lunghezza del vettore che contiene l'istogramma"<<endl;
 
-    int Z=5;
-    int W=5;
-    int gamma=8;
-    double epsilon=1.22;
-    int weights[23] = {1, 3, 6, 10, 15, 16, 13, 6, -5, -20, -29, -32, -29, -20, -5, 6, 13, 16, 15, 10, 6, 3, 1};
-    vector<double> s;
-    vector<double> f;
-    int n1, n2, n3, n1_max, n1_min, n2_max, n2_min, n3_max, n3_min;
-    vector<double> peakVector;
-    int t;
-    //QString destinazione;
-    //QString destinazione_file;
-
-
-    //t = Spectrum::histoFileName.lastIndexOf("/");
-    //destinazione = histoFileName.left(t+1);
-    //cout<<destinazione.toStdString() <<endl;
-    //cout<<fileName.toStdString() <<endl;
-    //destinazione_file = destinazione + fileName;
-    //cout<<destinazione_file.toStdString()<<endl;
+//     int Z=5;
+//     int W=5;
+//     int gamma=8;
+//     double epsilon=1.22;
+//     int weights[23] = {1, 3, 6, 10, 15, 16, 13, 6, -5, -20, -29, -32, -29, -20, -5, 6, 13, 16, 15, 10, 6, 3, 1};
+//     vector<double> s;
+//     vector<double> f;
+//     int n1, n2, n3, n1_max, n1_min, n2_max, n2_min, n3_max, n3_min;
+//     vector<double> peakVector;
+//     int t;
+//     //QString destinazione;
+//     //QString destinazione_file;
 
 
-
-   for (int i=0; i<vettoreValori.size(); i++)  {                    //VETTORE DELLE DERIVTATE SECONDE INIZIALE
-        if (i==0) {                         //Bin iniziale, riempito con 0
-            s.push_back(0);
-            continue;
-        }
-        if (i==vettoreValori.size()-1) {    //Bin finale, riempito con i conteggi del bin finale
-            s.push_back(0);
-            continue;
-        }
-        s.push_back(vettoreValori.at(i+1)-2*vettoreValori.at(i)+vettoreValori.at(i-1) );
-
-   }
-
-   for (int k=0; k<Z; k++)  {                                       //Z VOLTE SMUSSAMENTO DERIVATA SECONDA S
-        for (int i=0; i<s.size(); i++)   {
-            if (i>=6 && i<=s.size()-6)   s.at(i)=(s.at(i-2)+s.at(i-1)+s.at(i)+s.at(i+1)+s.at(i+2))/W;
-        }
-   }
-
-
-   for (int i=0; i<11; i++) f.push_back(0);                         //VETTORE DEVIAZIONI STANDARD F
-   for (int i=11; i<vettoreValori.size()-11; i++)   {
-        int sommatoria = 0;
-        int indice_weights = 0;
-
-        for (int j=i-11; j<=i+11; j++) {
-
-                sommatoria = sommatoria + pow((weights[indice_weights]), 2)*vettoreValori.at(j);
-                //cout<<"j: "<<j<<" peso: "<<weights[indice_weights]<<" conteggi: "<<vettoreValori.at(j)<<" sommatoria: "<<sommatoria<<endl;
-                indice_weights++;
-        }
-
-        f.push_back(sqrt(sommatoria/(5220.)));
-        indice_weights = 0;
-        //cout<<sommatoria<<endl;
-        //cout<<"bin: "<<i<<" sommatoria: "<<sommatoria<<endl;
-    }
-    for (int i=vettoreValori.size()-11; i<vettoreValori.size(); i++)    f.push_back(0);
-
-    n1 = int(1.22*gamma+0.5);
-    cout<<"n1: "<<n1<<endl;
-
-    n1_min = n1-epsilon;
-    n1_max = n1+epsilon;
-
-    n2_min = int(0.5*(n1-epsilon)+0.5);
-    n2_max = int(0.5*(n1+epsilon)+0.5);
-    cout<<"n2_min: "<<n2_min<<endl;
-    cout<<"n2_max: "<<n2_max<<endl;
-
-    n3_min = int(fabs((n1-epsilon)*(1-2)+0.5));
-    n3_max = int(fabs((n1+epsilon)*(1-2)+0.5));
-    cout<<"n3_min: "<<n3_min<<endl;
-    cout<<"n3_max: "<<n3_max<<endl;
-
-    /*for (int i=0; i<f.size(); i++)  {
-        cout<<f.at(i)<<endl;
-    }*/
-
-    /*for (int i=0; i<s.size(); i++)  {           //PRIMISSIMA APPROSSIMZIONE
-        if  (fabs(s.at(i))>0.1*f.at(i)) {
-            cout<<"picco! "<<"canale: "<<i<<" energia: "<<caliSlope*i+caliIntercept<<endl;
-        }
-    }*/
-
-    /*TH1F *h1;                       //FIT DI PROVA-------------------
-    h1= new TH1F("prova","prova", vettoreValori.size(), 0, vettoreValori.size()+1);
-    for (int j=0; j<vettoreValori.size(); j++)	{
-        h1->SetBinContent(j+1, vettoreValori.at(j));
-    }
-
-    TF1 * fit = new TF1 ("gaussianaFondo", "gaus(0) + pol1(3)");
-    //fit->SetParameter(0, 100);
-    fit->SetParameter(1, 3600);
-    fit->SetParameter(2, 2);
-    fit->SetParLimits(0,0, 1000);
-    fit->SetParLimits(2,0, 100);
-    h1->Fit(fit, "", "", 3500, 3700);       //---------------------------------
-    cout<<"PICCO FITTATO "<<fit->GetParameter(1)*caliSlope+caliIntercept<<endl;*/
-
-    /*int trova (int x, int y)  {
-        int min;
-        min = x;
-        for (int i=x; i<y; i++) {
-            if (s.at(i)<min)    min=i;
-        }
-        return min;
-    }*/
+//     //t = Spectrum::histoFileName.lastIndexOf("/");
+//     //destinazione = histoFileName.left(t+1);
+//     //cout<<destinazione.toStdString() <<endl;
+//     //cout<<fileName.toStdString() <<endl;
+//     //destinazione_file = destinazione + fileName;
+//     //cout<<destinazione_file.toStdString()<<endl;
 
 
 
-    int M;                                    //CICLO CONDIZIONI PER TROVARE I PICCHI
-    int i1, i2, i3, i4, i5;
-    double i0;
-    for (int i=120; i<16000; i++)  {
+//    for (int i=0; i<vettoreValori.size(); i++)  {                    //VETTORE DELLE DERIVTATE SECONDE INIZIALE
+//         if (i==0) {                         //Bin iniziale, riempito con 0
+//             s.push_back(0);
+//             continue;
+//         }
+//         if (i==vettoreValori.size()-1) {    //Bin finale, riempito con i conteggi del bin finale
+//             s.push_back(0);
+//             continue;
+//         }
+//         s.push_back(vettoreValori.at(i+1)-2*vettoreValori.at(i)+vettoreValori.at(i-1) );
 
-        if (s.at(i) > f.at(i))  M=1;
-        else {
-                if (s.at(i)>0)  M=2;
-                else M=3;
-        }
+//    }
 
-        if (s.at(i-1) > f.at(i-1))    {
-            if (M==1)    continue;
-            if (M==2)   {
-                i2=i-1;
-                //cout<<"i2: "<<i2<<endl;
-            }
-            if (M==3)    {
-                i3=i;
-                //cout<<"i3: "<<i3<<endl;
-                i2=i-1;
-                //cout<<"i2: "<<i2<<endl;
-                continue;
-            }
-        }
-        else    {
-            if (s.at(i-1)>0)    {
-                if (M==1)   {
-                    i1=i;
-                    //cout<<"i1: "<<i1<<endl;
-                }
-                if (M==2)    continue;
-                if (M==3)   {
-                    i3=i;
-                    //cout<<"i3: "<<i3<<endl;
-                }
-            }
-            else    {
-                if (M==3)   continue;
-                if (M==1 || M==2)   {
-                    i5=i-1;
-                    //cout<<"i5: "<<i5<<endl;
-
-                    int min=i3;
-                    for (int j=i3; j<i5; j++)   {
-                        if (s.at(j)<s.at(min))   min=j;
-                    }
-                    i4=min;
-                    //cout<<"i4: "<<i4<<endl;
-
-                    double sommatoria = 0;
-                    double produttoria = 0;
-                    for (int k=i3; k<i5; k++)   {
-                        produttoria = produttoria + k*s.at(k);
-                        sommatoria = sommatoria + s.at(k);
-                    }
-                    i0 = produttoria/sommatoria;
-                    //cout<<"i0: "<<i0<<endl;
-
-                    if (fabs(s.at(i4)) > 0.05*f.at(i4) )    {       //&& fabs(i5-i3+1-n1)<epsilon
-                        peakVector.push_back(i0);
-                        cout<<"i0!!!: "<<i0*caliSlope+caliIntercept<<endl;
-                    }
-                }
-            }
-        }
+//    for (int k=0; k<Z; k++)  {                                       //Z VOLTE SMUSSAMENTO DERIVATA SECONDA S
+//         for (int i=0; i<s.size(); i++)   {
+//             if (i>=6 && i<=s.size()-6)   s.at(i)=(s.at(i-2)+s.at(i-1)+s.at(i)+s.at(i+1)+s.at(i+2))/W;
+//         }
+//    }
 
 
-    }
+//    for (int i=0; i<11; i++) f.push_back(0);                         //VETTORE DEVIAZIONI STANDARD F
+//    for (int i=11; i<vettoreValori.size()-11; i++)   {
+//         int sommatoria = 0;
+//         int indice_weights = 0;
 
-    ofstream punt(destinazione.toStdString().c_str());
-    punt << "Mean" <<"	"<<"Mean Err"<<"	"<<"FWHM"<<"    "<<"FWHM Err"<<"    "<<"NET Area"<<"    "<<"NET Area Err"<<"    "<<"Counts/s"<<"    "<<"Counts/s Err"<<endl;
-    double ampiezzaBin = (chNum*caliSlope+caliIntercept)/chNum;
-    for (int i=0; i<peakVector.size(); i++) {
+//         for (int j=i-11; j<=i+11; j++) {
 
-        TH1F *histoPicco;
-        histoPicco= new TH1F("prova","prova", vettoreValori.size(), 0, vettoreValori.size()+1);
-        for (int j=0; j<vettoreValori.size(); j++)	{
-            histoPicco->SetBinContent(j+1, vettoreValori.at(j));
-        }     
+//                 sommatoria = sommatoria + pow((weights[indice_weights]), 2)*vettoreValori.at(j);
+//                 //cout<<"j: "<<j<<" peso: "<<weights[indice_weights]<<" conteggi: "<<vettoreValori.at(j)<<" sommatoria: "<<sommatoria<<endl;
+//                 indice_weights++;
+//         }
 
-        if (i==peakVector.size()-1 || peakVector.at(i+1)-peakVector.at(i) > 3*gamma)  {                                                   // GAUSSIANA SINGOLA
-            //punt<<"picco"<<"    "<<peakVector.at(i)*caliSlope+caliIntercept<<endl;
-            TF1 * singleGaus = new TF1 ("gaussianaFondo", "gaus(0) + pol1(3)");
-            //singleGaus->SetParameter(0, vettoreValori.at(i0));
-            singleGaus->SetParameter(1, peakVector.at(i));
-            singleGaus->SetParameter(2, gamma);
-            //singleGaus->SetParameter(0, vettoreValori.at(peakVector.at(i)) - vettoreValori.at(peakVector.at(i)-3*gamma));
-            //singleGaus->SetParLimits(0,0, vettoreValori.at(peakVector.at(i)));
-            //singleGaus->SetParLimits(1, peakVector.at(i)-30, peakVector.at(i)+30);
-            singleGaus->SetParLimits(2,0, 50);
-            histoPicco->Fit(singleGaus, "", "", peakVector.at(i)-3*gamma, peakVector.at(i)+3*gamma);
-            //cout<<"3gamma: "<<3*gamma*caliSlope<<endl;
+//         f.push_back(sqrt(sommatoria/(5220.)));
+//         indice_weights = 0;
+//         //cout<<sommatoria<<endl;
+//         //cout<<"bin: "<<i<<" sommatoria: "<<sommatoria<<endl;
+//     }
+//     for (int i=vettoreValori.size()-11; i<vettoreValori.size(); i++)    f.push_back(0);
 
-            double amp = singleGaus->GetParameter(0);
-            double ampErr = singleGaus->GetParError(0);
-            double mean = singleGaus->GetParameter(1)*caliSlope+caliIntercept;
-            double meanErr = singleGaus->GetParError(1)*caliSlope;
-            double sigma = singleGaus->GetParameter(2)*caliSlope;
-            double sigmaErr = singleGaus->GetParError(2)*caliSlope;
-            double FWHM = 2.355*sigma;
-            double FWHMErr = 2.355*sigmaErr;
-            double netArea = (int)(amp*sigma*sqrt(2*3.1416)/ampiezzaBin);
-            double netAreaErr = (int)((sqrt(2*3.1416)*sqrt(sigma*sigma*ampErr*ampErr+amp*amp*sigmaErr*sigmaErr))/ampiezzaBin);
-            double activity = netArea/liveTime;
-            double activityErr = netAreaErr/liveTime;
+//     n1 = int(1.22*gamma+0.5);
+//     cout<<"n1: "<<n1<<endl;
 
-            if (FWHM>FWHMErr && netArea>netAreaErr && netArea>0)    {
-                punt<<mean<<"    "<<meanErr<<"    "<<FWHM<<"    "<<FWHMErr<<"  "<<netArea<<"    "<<netAreaErr<<"    "<<activity<<"  "<<activityErr<<endl;
-            }
-        }
+//     n1_min = n1-epsilon;
+//     n1_max = n1+epsilon;
 
-        else    {                                                                               //GAUSSIANA DOPPIA
-            //punt<<peakVector.at(i)*caliSlope+caliIntercept<<"   "<<peakVector.at(i+1)*caliSlope+caliIntercept<<endl;
-            TF1 * doubleGaus = new TF1 ("doppiaGaussiana", "gaus(0) + gaus(3) + pol1(6)");
-            doubleGaus->SetParameter(1, peakVector.at(i));
-            doubleGaus->SetParameter(4, peakVector.at(i+1));
-            doubleGaus->SetParameter(2, gamma);
-            doubleGaus->SetParameter(5, gamma);
-            //doubleGaus->SetParameter(0, vettoreValori.at(peakVector.at(i)) - vettoreValori.at(peakVector.at(i)-1.6*gamma));
-            //doubleGaus->SetParameter(3, vettoreValori.at(peakVector.at(i+1)) - vettoreValori.at(peakVector.at(i+1)+1.6*gamma));
-            //doubleGaus->SetParLimits(2,0, 50);
-            //doubleGaus->SetParLimits(5,0, 50);
-            histoPicco->Fit(doubleGaus, "", "", peakVector.at(i)-1.6*gamma, peakVector.at(i+1)+1.6*gamma);
+//     n2_min = int(0.5*(n1-epsilon)+0.5);
+//     n2_max = int(0.5*(n1+epsilon)+0.5);
+//     cout<<"n2_min: "<<n2_min<<endl;
+//     cout<<"n2_max: "<<n2_max<<endl;
 
-            double amp1 = doubleGaus->GetParameter(0);
-            double ampErr1 = doubleGaus->GetParError(0);
-            double mean1 = doubleGaus->GetParameter(1)*caliSlope+caliIntercept;
-            double meanErr1 = doubleGaus->GetParError(1)*caliSlope;
-            double sigma1 = doubleGaus->GetParameter(2)*caliSlope;
-            double sigmaErr1 = doubleGaus->GetParError(2)*caliSlope;
-            double FWHM1 = 2.355*sigma1;
-            double FWHMErr1 = 2.355*sigmaErr1;
-            double netArea1 = (int)(amp1*sigma1*sqrt(2*3.1416)/ampiezzaBin);
-            double netAreaErr1 = (int)((sqrt(2*3.1416)*sqrt(sigma1*sigma1*ampErr1*ampErr1+amp1*amp1*sigmaErr1*sigmaErr1))/ampiezzaBin);
-            double activity1 = netArea1/liveTime;
-            double activityErr1 = netAreaErr1/liveTime;
+//     n3_min = int(fabs((n1-epsilon)*(1-2)+0.5));
+//     n3_max = int(fabs((n1+epsilon)*(1-2)+0.5));
+//     cout<<"n3_min: "<<n3_min<<endl;
+//     cout<<"n3_max: "<<n3_max<<endl;
 
-            double amp2 = doubleGaus->GetParameter(3);
-            double ampErr2 = doubleGaus->GetParError(3);
-            double mean2 = doubleGaus->GetParameter(4)*caliSlope+caliIntercept;
-            double meanErr2 = doubleGaus->GetParError(4)*caliSlope;
-            double sigma2 = doubleGaus->GetParameter(5)*caliSlope;
-            double sigmaErr2 = doubleGaus->GetParError(5)*caliSlope;
-            double FWHM2 = 2.355*sigma2;
-            double FWHMErr2 = 2.355*sigmaErr2;
-            double netArea2 = (int)(amp2*sigma2*sqrt(2*3.1416)/ampiezzaBin);
-            double netAreaErr2 = (int)((sqrt(2*3.1416)*sqrt(sigma2*sigma2*ampErr2*ampErr2+amp2*amp2*sigmaErr2*sigmaErr2))/ampiezzaBin);
-            double activity2 = netArea2/liveTime;
-            double activityErr2 = netAreaErr2/liveTime;
+//     /*for (int i=0; i<f.size(); i++)  {
+//         cout<<f.at(i)<<endl;
+//     }*/
 
-            if (FWHM1 > FWHMErr1 && netArea1 > netAreaErr1 && netArea1 > 0)    {
-                punt<<mean1<<"    "<<meanErr1<<"    "<<FWHM1<<"    "<<FWHMErr1<<"  "<<netArea1<<"    "<<netAreaErr1<<"    "<<activity1<<"  "<<activityErr1<<"  DOPPIA!"<<endl;
-            }
-            if (FWHM2 > FWHMErr2 && netArea2 > netAreaErr2 && netArea2 > 0)    {
-                punt<<mean2<<"    "<<meanErr2<<"    "<<FWHM2<<"    "<<FWHMErr2<<"  "<<netArea2<<"    "<<netAreaErr2<<"    "<<activity2<<"  "<<activityErr2<<"  DOPPIA!"<<endl;
-            }
-            ++i;
-        }
+//     /*for (int i=0; i<s.size(); i++)  {           //PRIMISSIMA APPROSSIMZIONE
+//         if  (fabs(s.at(i))>0.1*f.at(i)) {
+//             cout<<"picco! "<<"canale: "<<i<<" energia: "<<caliSlope*i+caliIntercept<<endl;
+//         }
+//     }*/
 
+//     /*TH1F *h1;                       //FIT DI PROVA-------------------
+//     h1= new TH1F("prova","prova", vettoreValori.size(), 0, vettoreValori.size()+1);
+//     for (int j=0; j<vettoreValori.size(); j++)	{
+//         h1->SetBinContent(j+1, vettoreValori.at(j));
+//     }
 
-    }
-    punt.close();
+//     TF1 * fit = new TF1 ("gaussianaFondo", "gaus(0) + pol1(3)");
+//     //fit->SetParameter(0, 100);
+//     fit->SetParameter(1, 3600);
+//     fit->SetParameter(2, 2);
+//     fit->SetParLimits(0,0, 1000);
+//     fit->SetParLimits(2,0, 100);
+//     h1->Fit(fit, "", "", 3500, 3700);       //---------------------------------
+//     cout<<"PICCO FITTATO "<<fit->GetParameter(1)*caliSlope+caliIntercept<<endl;*/
+
+//     /*int trova (int x, int y)  {
+//         int min;
+//         min = x;
+//         for (int i=x; i<y; i++) {
+//             if (s.at(i)<min)    min=i;
+//         }
+//         return min;
+//     }*/
 
 
 
+//     int M;                                    //CICLO CONDIZIONI PER TROVARE I PICCHI
+//     int i1, i2, i3, i4, i5;
+//     double i0;
+//     for (int i=120; i<16000; i++)  {
 
-    cout<<"FINE peakID() !!!"<<endl;
-}
+//         if (s.at(i) > f.at(i))  M=1;
+//         else {
+//                 if (s.at(i)>0)  M=2;
+//                 else M=3;
+//         }
+
+//         if (s.at(i-1) > f.at(i-1))    {
+//             if (M==1)    continue;
+//             if (M==2)   {
+//                 i2=i-1;
+//                 //cout<<"i2: "<<i2<<endl;
+//             }
+//             if (M==3)    {
+//                 i3=i;
+//                 //cout<<"i3: "<<i3<<endl;
+//                 i2=i-1;
+//                 //cout<<"i2: "<<i2<<endl;
+//                 continue;
+//             }
+//         }
+//         else    {
+//             if (s.at(i-1)>0)    {
+//                 if (M==1)   {
+//                     i1=i;
+//                     //cout<<"i1: "<<i1<<endl;
+//                 }
+//                 if (M==2)    continue;
+//                 if (M==3)   {
+//                     i3=i;
+//                     //cout<<"i3: "<<i3<<endl;
+//                 }
+//             }
+//             else    {
+//                 if (M==3)   continue;
+//                 if (M==1 || M==2)   {
+//                     i5=i-1;
+//                     //cout<<"i5: "<<i5<<endl;
+
+//                     int min=i3;
+//                     for (int j=i3; j<i5; j++)   {
+//                         if (s.at(j)<s.at(min))   min=j;
+//                     }
+//                     i4=min;
+//                     //cout<<"i4: "<<i4<<endl;
+
+//                     double sommatoria = 0;
+//                     double produttoria = 0;
+//                     for (int k=i3; k<i5; k++)   {
+//                         produttoria = produttoria + k*s.at(k);
+//                         sommatoria = sommatoria + s.at(k);
+//                     }
+//                     i0 = produttoria/sommatoria;
+//                     //cout<<"i0: "<<i0<<endl;
+
+//                     if (fabs(s.at(i4)) > 0.05*f.at(i4) )    {       //&& fabs(i5-i3+1-n1)<epsilon
+//                         peakVector.push_back(i0);
+//                         cout<<"i0!!!: "<<i0*caliSlope+caliIntercept<<endl;
+//                     }
+//                 }
+//             }
+//         }
+
+
+//     }
+
+//     ofstream punt(destinazione.toStdString().c_str());
+//     punt << "Mean" <<"	"<<"Mean Err"<<"	"<<"FWHM"<<"    "<<"FWHM Err"<<"    "<<"NET Area"<<"    "<<"NET Area Err"<<"    "<<"Counts/s"<<"    "<<"Counts/s Err"<<endl;
+//     double ampiezzaBin = (chNum*caliSlope+caliIntercept)/chNum;
+//     for (int i=0; i<peakVector.size(); i++) {
+
+//         TH1F *histoPicco;
+//         histoPicco= new TH1F("prova","prova", vettoreValori.size(), 0, vettoreValori.size()+1);
+//         for (int j=0; j<vettoreValori.size(); j++)	{
+//             histoPicco->SetBinContent(j+1, vettoreValori.at(j));
+//         }     
+
+//         if (i==peakVector.size()-1 || peakVector.at(i+1)-peakVector.at(i) > 3*gamma)  {                                                   // GAUSSIANA SINGOLA
+//             //punt<<"picco"<<"    "<<peakVector.at(i)*caliSlope+caliIntercept<<endl;
+//             TF1 * singleGaus = new TF1 ("gaussianaFondo", "gaus(0) + pol1(3)");
+//             //singleGaus->SetParameter(0, vettoreValori.at(i0));
+//             singleGaus->SetParameter(1, peakVector.at(i));
+//             singleGaus->SetParameter(2, gamma);
+//             //singleGaus->SetParameter(0, vettoreValori.at(peakVector.at(i)) - vettoreValori.at(peakVector.at(i)-3*gamma));
+//             //singleGaus->SetParLimits(0,0, vettoreValori.at(peakVector.at(i)));
+//             //singleGaus->SetParLimits(1, peakVector.at(i)-30, peakVector.at(i)+30);
+//             singleGaus->SetParLimits(2,0, 50);
+//             histoPicco->Fit(singleGaus, "", "", peakVector.at(i)-3*gamma, peakVector.at(i)+3*gamma);
+//             //cout<<"3gamma: "<<3*gamma*caliSlope<<endl;
+
+//             double amp = singleGaus->GetParameter(0);
+//             double ampErr = singleGaus->GetParError(0);
+//             double mean = singleGaus->GetParameter(1)*caliSlope+caliIntercept;
+//             double meanErr = singleGaus->GetParError(1)*caliSlope;
+//             double sigma = singleGaus->GetParameter(2)*caliSlope;
+//             double sigmaErr = singleGaus->GetParError(2)*caliSlope;
+//             double FWHM = 2.355*sigma;
+//             double FWHMErr = 2.355*sigmaErr;
+//             double netArea = (int)(amp*sigma*sqrt(2*3.1416)/ampiezzaBin);
+//             double netAreaErr = (int)((sqrt(2*3.1416)*sqrt(sigma*sigma*ampErr*ampErr+amp*amp*sigmaErr*sigmaErr))/ampiezzaBin);
+//             double activity = netArea/liveTime;
+//             double activityErr = netAreaErr/liveTime;
+
+//             if (FWHM>FWHMErr && netArea>netAreaErr && netArea>0)    {
+//                 punt<<mean<<"    "<<meanErr<<"    "<<FWHM<<"    "<<FWHMErr<<"  "<<netArea<<"    "<<netAreaErr<<"    "<<activity<<"  "<<activityErr<<endl;
+//             }
+//         }
+
+//         else    {                                                                               //GAUSSIANA DOPPIA
+//             //punt<<peakVector.at(i)*caliSlope+caliIntercept<<"   "<<peakVector.at(i+1)*caliSlope+caliIntercept<<endl;
+//             TF1 * doubleGaus = new TF1 ("doppiaGaussiana", "gaus(0) + gaus(3) + pol1(6)");
+//             doubleGaus->SetParameter(1, peakVector.at(i));
+//             doubleGaus->SetParameter(4, peakVector.at(i+1));
+//             doubleGaus->SetParameter(2, gamma);
+//             doubleGaus->SetParameter(5, gamma);
+//             //doubleGaus->SetParameter(0, vettoreValori.at(peakVector.at(i)) - vettoreValori.at(peakVector.at(i)-1.6*gamma));
+//             //doubleGaus->SetParameter(3, vettoreValori.at(peakVector.at(i+1)) - vettoreValori.at(peakVector.at(i+1)+1.6*gamma));
+//             //doubleGaus->SetParLimits(2,0, 50);
+//             //doubleGaus->SetParLimits(5,0, 50);
+//             histoPicco->Fit(doubleGaus, "", "", peakVector.at(i)-1.6*gamma, peakVector.at(i+1)+1.6*gamma);
+
+//             double amp1 = doubleGaus->GetParameter(0);
+//             double ampErr1 = doubleGaus->GetParError(0);
+//             double mean1 = doubleGaus->GetParameter(1)*caliSlope+caliIntercept;
+//             double meanErr1 = doubleGaus->GetParError(1)*caliSlope;
+//             double sigma1 = doubleGaus->GetParameter(2)*caliSlope;
+//             double sigmaErr1 = doubleGaus->GetParError(2)*caliSlope;
+//             double FWHM1 = 2.355*sigma1;
+//             double FWHMErr1 = 2.355*sigmaErr1;
+//             double netArea1 = (int)(amp1*sigma1*sqrt(2*3.1416)/ampiezzaBin);
+//             double netAreaErr1 = (int)((sqrt(2*3.1416)*sqrt(sigma1*sigma1*ampErr1*ampErr1+amp1*amp1*sigmaErr1*sigmaErr1))/ampiezzaBin);
+//             double activity1 = netArea1/liveTime;
+//             double activityErr1 = netAreaErr1/liveTime;
+
+//             double amp2 = doubleGaus->GetParameter(3);
+//             double ampErr2 = doubleGaus->GetParError(3);
+//             double mean2 = doubleGaus->GetParameter(4)*caliSlope+caliIntercept;
+//             double meanErr2 = doubleGaus->GetParError(4)*caliSlope;
+//             double sigma2 = doubleGaus->GetParameter(5)*caliSlope;
+//             double sigmaErr2 = doubleGaus->GetParError(5)*caliSlope;
+//             double FWHM2 = 2.355*sigma2;
+//             double FWHMErr2 = 2.355*sigmaErr2;
+//             double netArea2 = (int)(amp2*sigma2*sqrt(2*3.1416)/ampiezzaBin);
+//             double netAreaErr2 = (int)((sqrt(2*3.1416)*sqrt(sigma2*sigma2*ampErr2*ampErr2+amp2*amp2*sigmaErr2*sigmaErr2))/ampiezzaBin);
+//             double activity2 = netArea2/liveTime;
+//             double activityErr2 = netAreaErr2/liveTime;
+
+//             if (FWHM1 > FWHMErr1 && netArea1 > netAreaErr1 && netArea1 > 0)    {
+//                 punt<<mean1<<"    "<<meanErr1<<"    "<<FWHM1<<"    "<<FWHMErr1<<"  "<<netArea1<<"    "<<netAreaErr1<<"    "<<activity1<<"  "<<activityErr1<<"  DOPPIA!"<<endl;
+//             }
+//             if (FWHM2 > FWHMErr2 && netArea2 > netAreaErr2 && netArea2 > 0)    {
+//                 punt<<mean2<<"    "<<meanErr2<<"    "<<FWHM2<<"    "<<FWHMErr2<<"  "<<netArea2<<"    "<<netAreaErr2<<"    "<<activity2<<"  "<<activityErr2<<"  DOPPIA!"<<endl;
+//             }
+//             ++i;
+//         }
+
+
+//     }
+//     punt.close();
+
+
+
+
+//     cout<<"FINE peakID() !!!"<<endl;
+// }
 
 //CLASS PEAK
 void Peak::calculateNetArea(){
@@ -641,6 +652,10 @@ void MarkersAndFits::calculateIntegral(){
     for(int i=0; i< numberOfBins; i++){
         integral +=fitIntervalHisto.at(i).value;
         integralHisto.append(fitIntervalHisto.at(i));
+
+        QwtIntervalSample tempInterval = fitIntervalHisto.at(i);
+        if (tempInterval.value == 0) tempInterval.value = 0.1;
+        logIntegralHisto.append(tempInterval);
     }
 }
 

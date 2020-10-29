@@ -37,6 +37,8 @@ public:
     QString histoFileName;
     QVector<QwtIntervalSample> origHistoVector;
     QVector<QwtIntervalSample> histoVector;
+    QVector<QwtIntervalSample> logHistoVector; // only for drawing
+    
     vector<int> vettoreValori;
     int binFactor;
     float binStep;
@@ -167,6 +169,7 @@ public:
     QVector<Peak*> peaksVectorTemp;
     QVector<QwtIntervalSample> fitIntervalHisto;
     QVector<QwtIntervalSample> integralHisto;
+    QVector<QwtIntervalSample> logIntegralHisto;
     TF1 *func;
     QVector<double> xFitVal;
     QVector<double> yFitValGauss;
@@ -182,15 +185,17 @@ public:
 };
 
 
-class myPicker: public QwtPlotPicker
+class MyPicker: public QwtPlotPicker
 {
 public:
-    myPicker();
+    MyPicker();
 
-    myPicker(int xAxis, int yAxis, RubberBand rubberBand, DisplayMode trackerMode, QwtPlotCanvas *mycanvas):
+    MyPicker(int xAxis, int yAxis, RubberBand rubberBand, DisplayMode trackerMode, QWidget *mycanvas):
         QwtPlotPicker(xAxis,yAxis,rubberBand,trackerMode,mycanvas){
+    }
 
-
+    QPointF getCoordinatesFromPixels(QPoint point) {
+        return invTransform(point);
     }
 
 };
