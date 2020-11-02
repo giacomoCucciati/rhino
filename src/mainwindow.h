@@ -43,6 +43,7 @@ public:
     int histoScrollBarMaxLength;
     QString pathName;
     bool isLogScaleActive;
+    bool useLastSigma;
     float baseValueLinLogScale;
     //MY METHODS
     void showSpectrumInHistoPlot();
@@ -111,7 +112,7 @@ private slots:
     void on_secondSpecButton_clicked(bool checked);
 
     void printSpectrumData();
-
+    
     //void on_autofitButton_clicked();
 
     // void on_pushButton_clicked();

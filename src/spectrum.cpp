@@ -13,6 +13,16 @@ Spectrum::Spectrum(QString histoFileNameNew,string type, int spectrumNumber){
 
 }
 
+Spectrum::Spectrum(QString histoFileNameNew,string type, int spectrumNumber, int channelsNumber, string energyBranchName, Double_t maxEnergy){
+
+    cout<<"Second spectrum constructor with "<<channelsNumber<< " " <<energyBranchName<< endl;
+    histoFileName=histoFileNameNew;
+    loadHistoVector(type, spectrumNumber, channelsNumber, energyBranchName, maxEnergy);
+    binStep = histoVector.at(0).interval.width();
+    minValue = histoVector.at(0).interval.minValue();
+
+}
+
 Spectrum::~Spectrum(){}
 float Spectrum::calibrateBin(float value){
 
@@ -93,7 +103,7 @@ void Spectrum::loadHistoVector(string type, int spectrumNumber){
                 float floatTemp; 
                 fileAgain.read(reinterpret_cast<char*>(&temp), sizeof(int));
 
-                vettoreValori.push_back(temp);          //AGGIUNTA MAFFE
+                //vettoreValori.push_back(temp);          //AGGIUNTA MAFFE
                 origHistoVector.append(QwtIntervalSample( temp, calibrateBin(i), calibrateBin(i+1)));
                 histoVector.append(QwtIntervalSample( temp, calibrateBin(i), calibrateBin(i+1)));
                 if (temp == 0) {
@@ -147,6 +157,66 @@ void Spectrum::loadHistoVector(string type, int spectrumNumber){
                 file.close();
                 if(counter==spectrumNumber) break;
                 else counter++;
+            }
+        }
+    }
+}
+
+void Spectrum::loadHistoVector(string type, int spectrumNumber, int channelsNumber, string energyBranchName, Double_t maxEnergy){
+    if (type=="root"){
+        TFile *f = new TFile(histoFileName.toUtf8().constData());
+        if (f->IsZombie()) {
+            cout << "Error opening file" << endl;
+            exit(-1);
+        } else {
+            // // Create a histogram for the values we read.
+            TH1F* myHist = new TH1F("h1", "ntuple", channelsNumber, 0, maxEnergy);
+            // Create a TTreeReader for the tree, 
+            TTreeReader myReader("outTree", f);
+            // Access branch values, expecting doubles.
+            TTreeReaderValue<Double_t> myValues(myReader, energyBranchName.c_str());
+            // Loop over all entries of the TTree or TChain.
+            while (myReader.Next()) {
+                // Just access the data as if they were iterators (note the '*' in front of them):
+                myHist->Fill(*myValues);
+            }
+            
+            Double_t halfBinWidth = 1;
+            Double_t leftBinMargin = 0;
+            Double_t rightBinMargin = 0;
+            // From TH1 reference:
+            // * bin = 0;       underflow bin
+            // * bin = 1;       first bin with low-edge xlow INCLUDED
+            // * bin = nbins;   last bin with upper-edge xup EXCLUDED
+            // * bin = nbins+1; overflow bin
+            // Do we want to draw also the overflow bin? Yes --> chNum = myHist->GetNbinsX() + 2
+            chNum = myHist->GetNbinsX() + 2;
+            for (Int_t i = 0; i < chNum; i++) {
+                
+                float temp;
+                float floatTemp;
+                Double_t binCenter;
+                
+                temp = myHist->GetBinContent(i);
+                binCenter = myHist->GetBinCenter(i);
+                if (i == 0) {
+                    halfBinWidth = myHist->GetBinWidth(i)/2.0;
+                    leftBinMargin = binCenter-halfBinWidth;
+                    rightBinMargin = binCenter+halfBinWidth;
+                } else {
+                    leftBinMargin = rightBinMargin;
+                    rightBinMargin = binCenter+halfBinWidth;
+                }
+
+                origHistoVector.append(QwtIntervalSample( temp, leftBinMargin, rightBinMargin));
+                histoVector.append(QwtIntervalSample( temp, leftBinMargin, rightBinMargin));
+                if (temp == 0) {
+                    floatTemp = 0.1;
+                } else {
+                    floatTemp = (float)temp;
+                }
+                logHistoVector.append(QwtIntervalSample( floatTemp, leftBinMargin, rightBinMargin));
+                // cout << (double)i << " " << (double)i+1.0 << " " << temp << " " << floatTemp << endl;
             }
         }
     }
@@ -491,6 +561,7 @@ void Peak::calculateNetArea(){
 
     netArea = (int)(amp*sigma*sqrt(2*3.1416))/binWidth;
     netAreaErr = (int)(sqrt(2*3.1416)*sqrt(sigma*sigma*ampErr*ampErr+amp*amp*sigmaErr*sigmaErr))/binWidth;
+  
 }
 
 void Peak::calculateFWHM(){
@@ -527,7 +598,7 @@ void MarkersAndFits::setFitInterval(QVector<QwtIntervalSample> histoVector){
 
 }
 
-void MarkersAndFits::fit(bool chiSquare, int whichBg){
+void MarkersAndFits::fit(bool chiSquare, int whichBg, Double_t sigma){
 
     int numberOfBins = fitIntervalHisto.size();
     Double_t leftValue = fitIntervalHisto.at(0).interval.minValue();
@@ -540,26 +611,31 @@ void MarkersAndFits::fit(bool chiSquare, int whichBg){
     }
     double numberOfParams = 0;
     numberOfGaussians = tempMarkersVector.size()-2;
-    if(whichBg==0) numberOfParams =2+3*numberOfGaussians+1;
-    if(whichBg==1) numberOfParams =3+3*numberOfGaussians+1;
-    if(whichBg==2) numberOfParams =4+3*numberOfGaussians+1;
+    // We use a single sigma for all of the gaussians
+    // It means we don't need 3*numberOfGaussians parameters
+    // but 2*numberOfGaussians + 1. Sigma will be stored in position:
+    // 2*numberOfGaussians
+
+    if(whichBg==0) numberOfParams =2+2*numberOfGaussians + 1;
+    if(whichBg==1) numberOfParams =3+2*numberOfGaussians + 1;
+    if(whichBg==2) numberOfParams =4+2*numberOfGaussians + 1;
 
     MyFitFunction *myFit = new MyFitFunction(whichBg,numberOfGaussians);
 
     func = new TF1("fit",myFit,&MyFitFunction::totalFitFunc ,leftValue,rightValue,numberOfParams);
 
     if(whichBg==0){
-        func->SetParameter(3*numberOfGaussians,(fitIntervalHisto.at(0).value-fitIntervalHisto.at(numberOfBins-1).value)/(leftValue-rightValue));
-        func->SetParameter(3*numberOfGaussians+1,fitIntervalHisto.at(0).value-func->GetParameter(3*numberOfGaussians)*leftValue);
+        func->SetParameter(2*numberOfGaussians+1,(fitIntervalHisto.at(0).value-fitIntervalHisto.at(numberOfBins-1).value)/(leftValue-rightValue));
+        func->SetParameter(2*numberOfGaussians+2,fitIntervalHisto.at(0).value-func->GetParameter(2*numberOfGaussians+1)*leftValue);
     } else if(whichBg==1){
-        func->SetParameter(3*numberOfGaussians,0);
-        func->SetParameter(3*numberOfGaussians+1,(fitIntervalHisto.at(0).value-fitIntervalHisto.at(numberOfBins-1).value)/(leftValue-rightValue));
-        func->SetParameter(3*numberOfGaussians+2,fitIntervalHisto.at(0).value-func->GetParameter(3*numberOfGaussians+1)*leftValue);
+        func->SetParameter(2*numberOfGaussians+1,0);
+        func->SetParameter(2*numberOfGaussians+2,(fitIntervalHisto.at(0).value-fitIntervalHisto.at(numberOfBins-1).value)/(leftValue-rightValue));
+        func->SetParameter(2*numberOfGaussians+3,fitIntervalHisto.at(0).value-func->GetParameter(2*numberOfGaussians+1)*leftValue);
     } else if(whichBg==2){
-        func->SetParameter(3*numberOfGaussians,-(fitIntervalHisto.at(0).value-fitIntervalHisto.at(numberOfBins-1).value)/2);
-        func->SetParameter(3*numberOfGaussians+1,(fitIntervalHisto.at(0).value-fitIntervalHisto.at(numberOfBins-1).value)/(leftValue-rightValue));
-        func->SetParameter(3*numberOfGaussians+2,(leftValue+rightValue)/2);
-        func->SetParameter(3*numberOfGaussians+3,(fitIntervalHisto.at(0).value+fitIntervalHisto.at(numberOfBins-1).value)/2);
+        func->SetParameter(2*numberOfGaussians+1,-(fitIntervalHisto.at(0).value-fitIntervalHisto.at(numberOfBins-1).value)/2);
+        func->SetParameter(2*numberOfGaussians+2,(fitIntervalHisto.at(0).value-fitIntervalHisto.at(numberOfBins-1).value)/(leftValue-rightValue));
+        func->SetParameter(2*numberOfGaussians+3,(leftValue+rightValue)/2);
+        func->SetParameter(2*numberOfGaussians+4,(fitIntervalHisto.at(0).value+fitIntervalHisto.at(numberOfBins-1).value)/2);
     } else if(whichBg==3){
         cout<<"Not implemented yet"<<endl;
     }
@@ -573,24 +649,27 @@ void MarkersAndFits::fit(bool chiSquare, int whichBg){
         }
     }
 
-
     for(int j = 0; j<numberOfGaussians;j++){
         double maxPeak = tempMarkersVector.at(j+2)->yValue()-(fitIntervalHisto.at(0).value+fitIntervalHisto.at(numberOfBins-1).value)/2;
-        func->SetParameter(3*j,maxPeak);
-        func->SetParameter(3*j+1,tempMarkersVector.at(j+2)->xValue());
-        func->SetParameter(3*j+2,1);
-        func->SetParLimits(3*j,0,maxVal*1.1);
-        func->SetParLimits(3*j+1,tempMarkersVector.at(j+2)->xValue()*0.95,tempMarkersVector.at(j+2)->xValue()*1.05);
-        func->SetParLimits(3*j+2,0,100);
-
+        func->SetParameter(2*j, maxPeak);
+        func->SetParameter(2*j+1, tempMarkersVector.at(j+2)->xValue());
+        func->SetParLimits(2*j, maxPeak*0.5, maxPeak*1.5);
+        func->SetParLimits(2*j+1, tempMarkersVector.at(j+2)->xValue()*0.97, tempMarkersVector.at(j+2)->xValue()*1.03);
+    }
+    if (sigma == 0) {
+        func->SetParameter(2*numberOfGaussians,1);
+        func->SetParLimits(2*numberOfGaussians,0,5);
+    } else {
+        func->FixParameter(2*numberOfGaussians,sigma);
     }
 
     if(chiSquare) h1->Fit("fit");
     else h1->Fit("fit","L");
-    double a = func->GetParameter(numberOfGaussians*3);
-    double b = func->GetParameter(numberOfGaussians*3+1);
-    double c = func->GetParameter(numberOfGaussians*3+2);
-    double d = func->GetParameter(numberOfGaussians*3+3);
+
+    double a = func->GetParameter(numberOfGaussians*2+1);
+    double b = func->GetParameter(numberOfGaussians*2+2);
+    double c = func->GetParameter(numberOfGaussians*2+3);
+    double d = func->GetParameter(numberOfGaussians*2+4);
 
     QVector<double> xFitSingleGaussTemp;
     singleGaussVector.push_back(xFitSingleGaussTemp);
@@ -608,9 +687,9 @@ void MarkersAndFits::fit(bool chiSquare, int whichBg){
 
         yFitValGauss.push_back(yFitValBack.at(i));
         for(int j = 0; j<numberOfGaussians;j++){
-            double con = func->GetParameter(3*j);
-            double mean = func->GetParameter(3*j+1);
-            double sigma = func->GetParameter(3*j+2);
+            double con = func->GetParameter(2*j);
+            double mean = func->GetParameter(2*j+1);
+            double sigma = func->GetParameter(2*numberOfGaussians);
             double yGauss = (con* TMath::Exp( -(xFitVal.at(i)-mean)*(xFitVal.at(i)-mean)/(2*sigma*sigma)));
             yFitValGauss.replace(i,yFitValGauss.at(i)+yGauss);
             if(i==0) {
@@ -630,16 +709,15 @@ void MarkersAndFits::fit(bool chiSquare, int whichBg){
 
 
     for(int j = 0; j<numberOfGaussians;j++){
-        double con = func->GetParameter(3*j);
-        double mean = func->GetParameter(3*j+1);
-        double sigma = func->GetParameter(3*j+2);
-        Peak* peak = new Peak(con, mean, sigma, func->GetParError(3*j), func->GetParError(3*j+1), func->GetParError(3*j+2),binStep);
+        double con = func->GetParameter(2*j);
+        double mean = func->GetParameter(2*j+1);
+        double sigma = func->GetParameter(2*numberOfGaussians);
+        Peak* peak = new Peak(con, mean, sigma, func->GetParError(2*j), func->GetParError(2*j+1), func->GetParError(2*numberOfGaussians),binStep);
         peaksVectorTemp.push_back(peak);
     }
 
-    int degreeOfFreedom = numberOfBins-numberOfGaussians*3-3-1;
+    int degreeOfFreedom = numberOfBins-numberOfGaussians*2-3-1+1;
     redChiSquare = func->GetChisquare()/degreeOfFreedom;
-
 }
 
 

@@ -6,6 +6,7 @@
 #include <QtCore>
 #include <QFont>
 #include <QWheelEvent>
+#include <QInputDialog>
 #include <qwt_plot_curve.h>
 #include <qwt_plot_grid.h>
 #include <qwt_symbol.h>
@@ -14,7 +15,9 @@
 #include <TH1F.h>
 #include <TF1.h>
 #include <TGraph.h>
-
+#include <TFile.h>
+#include <TBranch.h>
+#include <TObjArray.h>
 #include <TMath.h>
 #include <QCheckBox>
 #include <qwt_scale_engine.h>
@@ -60,8 +63,8 @@ void MainWindow::initializeAll(){
     m_picker = new QwtPickerClickPointMachine();
     m_picker->setState(QwtPickerMachine::PointSelection);
 
-    d_picker = new MyPicker(QwtPlot::xBottom, QwtPlot::yLeft, QwtPlotPicker::VLineRubberBand, QwtPicker::AlwaysOn, ui->histoPlot->canvas());
-    d_picker->setTrackerMode(QwtPicker::AlwaysOn);
+    d_picker = new MyPicker(QwtPlot::xBottom, QwtPlot::yLeft, QwtPlotPicker::VLineRubberBand, QwtPicker::AlwaysOff, ui->histoPlot->canvas());
+    //d_picker->setTrackerMode(QwtPicker::AlwaysOn);
     d_picker->setStateMachine(m_picker);
 
 
@@ -113,6 +116,7 @@ void MainWindow::initializeAll(){
     showMaximized();
     isLogScaleActive = false;
     baseValueLinLogScale = 0.0;
+    useLastSigma = false;
 
 }
 
@@ -152,7 +156,7 @@ void MainWindow::on_actionLoad_File_triggered()
     if (histoFileName.compare("")){
         ui->histoPlot->setAxisAutoScale(QwtPlot::xBottom,true);
         ui->histoPlot->setAxisAutoScale(QwtPlot::yLeft,true);
-        if( histoFileName.endsWith(".chn") || histoFileName.endsWith(".Chn") || histoFileName.endsWith(".CHN")){
+        if ( histoFileName.endsWith(".chn") || histoFileName.endsWith(".Chn") || histoFileName.endsWith(".CHN")){
             firstSpectrum = new Spectrum(histoFileName,"chn",0);
 
             int t;          //AGGIUNTA MAFFE
@@ -161,8 +165,50 @@ void MainWindow::on_actionLoad_File_triggered()
             firstSpectrum->fileName=histoFileName.right(histoFileName.size()-t-1);
             firstSpectrum->fileName.chop(4);
 
+        } if (histoFileName.endsWith(".root") || histoFileName.endsWith(".Root") || histoFileName.endsWith(".ROOT")) {
+            
+            TFile *f = new TFile(histoFileName.toUtf8().constData());
+            if (f->IsZombie()) {
+                cout << "Error opening file" << endl;
+                exit(-1);
+            } else {
+                TTree *myTree = (TTree*)f->Get("outTree");
+                TObjArray *myArray = myTree->GetListOfBranches();
+                vector<string> listOfBranches;
+                vector<string>::iterator listOfBranchesIt;
+                for (int j = 0; j < myArray->GetEntries(); j++) {
+                    TBranch *myBranch = (TBranch*)myArray->At(j);
+                    listOfBranches.push_back(myBranch->GetFullName().Data());
+                }
 
+                QStringList items;
+                
+                for (listOfBranchesIt = listOfBranches.begin(); listOfBranchesIt != listOfBranches.end(); listOfBranchesIt++) {
+                    items<<QString::fromStdString(*listOfBranchesIt);
+                }
 
+                bool ok1;
+                bool ok2;
+                string energiesString = "";
+
+                // Choosing energy channel in the TTree
+                QString item1 = QInputDialog::getItem(this, tr("From TTree to histo"), tr("Branch to plot:"), items, 0, false, &ok1);                      
+                if (ok1 && !item1.isEmpty())
+                    energiesString = item1.toStdString();
+                
+                // Choosing number of channels in the histogram
+                bool ok;
+                int chNum = QInputDialog::getInt(this, tr("From TTree to histo"), tr("Number of channels:"), 3600, 0, 16000, 1, &ok);
+                if (ok)
+                    cout<<chNum<<endl;
+
+                // Choosing max enregy of the histogram
+                Double_t maxEnergy = QInputDialog::getDouble(this, tr("From TTree to histo"), tr("Max energy (kEv):"), 10000, -2147483647 ,2147483647, 1, &ok);
+                if (ok)
+                    cout<<maxEnergy<<endl;
+
+                firstSpectrum = new Spectrum(histoFileName,"root",0, chNum, energiesString, maxEnergy);
+            }
         } else {
 
             firstSpectrum = new Spectrum(histoFileName,"tas",readTasFile(histoFileName));
@@ -438,7 +484,10 @@ void MainWindow::on_fitButton_clicked()
 {
     if(myMarkersAndFits->tempMarkersVector.size()>2){
 
-        //tolgo tutto quello che non devo più disegnare
+        // Deleting everything since we need to redraw allt he plots
+        // But I save the old sigma first if requested. Not an elegant method.
+        Double_t oldSigma;
+        if (useLastSigma) oldSigma = myMarkersAndFits->func->GetParameter(myMarkersAndFits->numberOfGaussians*2);
         myMarkersAndFits->clearVectors();
 
         integralFit->detach();
@@ -452,13 +501,12 @@ void MainWindow::on_fitButton_clicked()
         differenceFit->attach(ui->histoPlot);
         differenceLine->attach(ui->histoPlot);
         myMarkersAndFits->setFitInterval(selectedSpectrum->histoVector);
-        myMarkersAndFits->fit(ui->chiSquareRadio->isChecked(),getBgChosen());
+        if (useLastSigma) myMarkersAndFits->fit(ui->chiSquareRadio->isChecked(), getBgChosen(), oldSigma);
+        else myMarkersAndFits->fit(ui->chiSquareRadio->isChecked(), getBgChosen());
         gaussianFit->setSamples( myMarkersAndFits->xFitVal, myMarkersAndFits->yFitValGauss);
         backgroundFit->setSamples( myMarkersAndFits->xFitVal, myMarkersAndFits->yFitValBack);
         differenceFit->setSamples(myMarkersAndFits->xFitVal, myMarkersAndFits->yFitDifference);
         differenceLine->setSamples(myMarkersAndFits->xFitVal, myMarkersAndFits->yFitMean);
-
-
 
         fillTable("peak");
         myMarkersAndFits->prevMarkersVector.clear();
@@ -471,7 +519,7 @@ void MainWindow::on_fitButton_clicked()
         }
         myMarkersAndFits->tempMarkersVector.clear();
         ui->histoPlot->replot();
-
+        useLastSigma = false;
 
     } else if(myMarkersAndFits->tempMarkersVector.size()==2){ // Integral
         // Removing lines we don't need
@@ -504,8 +552,8 @@ void MainWindow::on_fitButton_clicked()
         ui->histoPlot->replot();
 
     } else if(myMarkersAndFits->tempMarkersVector.size()==1){
-        myMarker* soloMarker = myMarkersAndFits->tempMarkersVector.at(0);
         if (myMarkersAndFits->prevMarkersVector.size()>2){
+            myMarker* soloMarker = myMarkersAndFits->tempMarkersVector.at(0);
             Double_t leftValue = myMarkersAndFits->prevMarkersVector.at(0)->xValue();
             Double_t rightValue = myMarkersAndFits->prevMarkersVector.at(1)->xValue();
             if (leftValue>rightValue) {
@@ -520,15 +568,11 @@ void MainWindow::on_fitButton_clicked()
                     myMarkersAndFits->tempMarkersVector.push_back(myMarkersAndFits->prevMarkersVector.at(j));
                 }
                 myMarkersAndFits->tempMarkersVector.push_back(soloMarker);
+                useLastSigma = true;
                 on_fitButton_clicked();
-                ui->histoPlot->replot();
-
             }
         }
-
     }
-
-
 }
 
 void MainWindow::catchPointSelected(const QPointF &pos ){
@@ -545,7 +589,6 @@ void MainWindow::wheelEvent(QWheelEvent *event){
     if(d_picker->trackerPosition().x()!=-1){
         if(zoomer->isEnabled()){
             QPointF coordinates = d_picker->getCoordinatesFromPixels(d_picker->trackerPosition());
-            cout << d_picker->trackerPosition().x() << " " << coordinates.x() << " " <<zoomer->zoomRect().left()<<endl;
             qreal widthNew = 0;
             if(event->delta()>0) widthNew = zoomer->zoomRect().width()*0.9;
             else if(event->delta()<0) widthNew = zoomer->zoomRect().width()*1.1;
@@ -681,7 +724,6 @@ void MainWindow::fillTable(string entryType){
             int spectrumNumber;
             if (selectedSpectrum==firstSpectrum) spectrumNumber=1;
             else if (selectedSpectrum==secondSpectrum)   spectrumNumber=2;
-            cout<<"1 o 2?? "<<spectrumNumber<<endl;
             whichSpectrum->setBackgroundColor(bgcolor);
             whichSpectrum->setText(QString::number ( spectrumNumber,'g',6 ));
             whichSpectrum->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);

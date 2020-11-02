@@ -11,9 +11,13 @@
 #include <qwt_plot_marker.h>
 #include <qwt_plot_canvas.h>
 #include <TH1F.h>
+#include <TTreeReader.h>
 #include <TF1.h>
 #include <TGraph.h>
 #include <TMath.h>
+#include <TFile.h>
+#include <TTree.h>
+#include <TObjArray.h>
 #include <QDialog>
 #include <QPushButton>
 #include <QHBoxLayout>
@@ -27,8 +31,10 @@ class Spectrum {
 public:
     Spectrum();
     Spectrum(QString histoFileNameNew,string type, int spectrumNumber);
+    Spectrum(QString histoFileNameNew,string type, int spectrumNumber, int channelsNumber, string energyBranchName, Double_t maxEnergy);
     ~Spectrum();
     void loadHistoVector(string type, int spectrumNumber);
+    void loadHistoVector(string type, int spectrumNumber, int channelsNumber, string energyBranchName, Double_t maxEnergy);
     float calibrateBin(float value);
     void rebinning(int newBinFactor);
     void recalibrate();
@@ -62,15 +68,15 @@ public:
     {
         setTrackerMode( AlwaysOn );
     }
-    virtual QwtText trackerTextF( const QPointF &pos ) const
-    {
-        QColor bg( Qt::white );
-        bg.setAlpha( 0 );
+    // virtual QwtText trackerTextF( const QPointF &pos ) const
+    // {
+    //     QColor bg( Qt::white );
+    //     bg.setAlpha( 0 );
 
-        QwtText text = QwtPlotZoomer::trackerTextF( pos );
-        text.setBackgroundBrush( QBrush( bg ) );
-        return text;
-    }
+    //     QwtText text = QwtPlotZoomer::trackerTextF( pos );
+    //     text.setBackgroundBrush( QBrush( bg ) );
+    //     return text;
+    // }
 
 public Q_SLOTS:
 
@@ -152,7 +158,7 @@ public:
     }
     ~MarkersAndFits();
     void setFitInterval(QVector<QwtIntervalSample> histoVector);
-    void fit(bool chiSquare, int whichBg);
+    void fit(bool chiSquare, int whichBg, Double_t sigma = 0);
     void calculateIntegral();
     void clearVectors();
     double totalFitFunction(Double_t *x,Double_t *par);
@@ -228,8 +234,8 @@ public:
 
     }
 
-    double oneGauss(double *x, double *par){
-        double fitval = par[0] * TMath::Exp( -(x[0]-par[1])*(x[0]-par[1])/(2*par[2]*par[2]) );
+    double oneGauss(double *x, double *par, double commonSigma){
+        double fitval = par[0] * TMath::Exp( -(x[0]-par[1])*(x[0]-par[1])/(2*commonSigma*commonSigma) );
         return fitval;
     }
     double linearBackground(double *x, double *par){
@@ -247,11 +253,11 @@ public:
     double totalFitFunc(double *x, double *par) {
         double fitval = 0;
         for(int i = 0; i< numberOfGaussians; i++){
-            fitval+=oneGauss(x,&par[3*i]);
+            fitval+=oneGauss(x, &par[2*i], par[numberOfGaussians*2]);
         }
-        if (whichBg==0)    fitval +=  linearBackground(x,&par[numberOfGaussians*3]);
-        if (whichBg==1)    fitval +=  quadraticBackground(x,&par[numberOfGaussians*3]);
-        if (whichBg==2)    fitval +=  sigmoidBackground(x,&par[numberOfGaussians*3]);
+        if (whichBg==0)    fitval +=  linearBackground(x,&par[numberOfGaussians*2+1]);
+        if (whichBg==1)    fitval +=  quadraticBackground(x,&par[numberOfGaussians*2+1]);
+        if (whichBg==2)    fitval +=  sigmoidBackground(x,&par[numberOfGaussians*2+1]);
 
         return fitval;
     }
