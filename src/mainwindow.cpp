@@ -117,6 +117,9 @@ void MainWindow::initializeAll(){
     isLogScaleActive = false;
     baseValueLinLogScale = 0.0;
     useLastSigma = false;
+    ui->splitter->setStretchFactor(0,3);
+    ui->splitter_2->setStretchFactor(0,10);
+
 
 }
 
