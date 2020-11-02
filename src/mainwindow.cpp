@@ -576,13 +576,14 @@ void MainWindow::on_fitButton_clicked()
 }
 
 void MainWindow::catchPointSelected(const QPointF &pos ){
-
+    if (firstSpectrum != NULL) {
         myMarker *newMarker = new myMarker(ui->histoPlot);
         int markerCell = (int)((pos.x()-selectedSpectrum->minValue)/selectedSpectrum->binStep);
         newMarker->setValue(pos.x(),selectedSpectrum->histoVector.at(markerCell).value);
         ui->histoPlot->replot();
         myMarkersAndFits->tempMarkersVector.push_back(newMarker);
         ui->calLineEdit->setText(QString::number ( markerCell,'g',6 ));
+    }
 }
 
 void MainWindow::wheelEvent(QWheelEvent *event){
@@ -630,11 +631,13 @@ void MainWindow::keyPressEvent(QKeyEvent *event){
 }
 
 void MainWindow::on_leftButton_pressed(){
-    int newValue = ui->histoScrollBar->value();
-    if(zoomer->zoomRect().width()*0.5<20) newValue -=20;
-    else newValue -=zoomer->zoomRect().width()*0.5;
-    if(newValue < ui->histoScrollBar->minimum()) newValue = ui->histoScrollBar->minimum();
-    ui->histoScrollBar->setValue(newValue);
+    if (firstSpectrum != NULL) {
+        int newValue = ui->histoScrollBar->value();
+        if(zoomer->zoomRect().width()*0.5<20) newValue -=20;
+        else newValue -=zoomer->zoomRect().width()*0.5;
+        if(newValue < ui->histoScrollBar->minimum()) newValue = ui->histoScrollBar->minimum();
+        ui->histoScrollBar->setValue(newValue);
+    }
 }
 
 void MainWindow::on_rightButton_pressed(){
